@@ -28,6 +28,10 @@
                 <input type="text" id="friend-code-input" placeholder="6-digit code" class="friend-input">
                 <button onclick="addFriendFromSidebar()" class="friend-add-btn">Add</button>
             </div>
+            <div style="margin-top:10px;">
+                <input type="text" id="list-invite-input" placeholder="List invite code" class="friend-input">
+                <button onclick="joinListByInviteCode()" class="friend-add-btn">Join List</button>
+            </div>
         </div>
 
         <hr>
@@ -99,12 +103,26 @@
                 <input type="text" id="new-list-title" placeholder="e.g., Weekend Cafe Hopping" class="modal-input">
 
                 <label>Invite Friends (Optional)</label>
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                    <label style="margin:0; width:120px;">Category</label>
+                    <select id="new-list-category" style="flex:1; padding:8px; border-radius:8px;">
+                        <option value="general">General</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="buy">Buy</option>
+                        <option value="to_go">To Go Places</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <label>Invite Friends (Optional)</label>
                 <div id="create-friends-list" class="selection-list">
                 </div>
                 
                 <div class="status-footer">
                     <p id="create-target-label" class="type-preview">Target: Personal Section</p>
-                    <button onclick="createListFromModal()" class="save-btn">Create List</button>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button onclick="createListFromModal()" class="save-btn">Create List</button>
+                        <div id="new-list-invite-display" style="font-size:0.85rem;color:#666;"></div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -227,7 +227,51 @@ window.addFriendFromSidebar = async () => {
         alert(`✅ Friend added: ${friendName}`);
     } catch (error) {
         console.error('Error adding friend:', error);
-        alert('Failed to add friend');
+        alert('Failed to add friend: ' + (error.message || 'unknown error'));
+    }
+};
+
+// Join a list using an invite code
+window.joinListByInviteCode = async () => {
+    const input = document.getElementById('list-invite-input');
+    const code = input.value.trim();
+    if (!code) return alert('Enter a list invite code');
+    if (!currentUser) return alert('Please sign in first');
+
+    try {
+        const q = query(collection(db, 'lists'), where('inviteCode', '==', code));
+        const snap = await getDocs(q);
+        if (snap.empty) return alert('Invite code not found');
+
+        const listDoc = snap.docs[0];
+        const listRef = doc(db, 'lists', listDoc.id);
+        const listData = listDoc.data();
+
+        if ((listData.members || []).includes(currentUser.uid)) {
+            alert('You are already a member of this list');
+            return;
+        }
+
+        await updateDoc(listRef, { members: arrayUnion(currentUser.uid) });
+
+        // Log activity for owner
+        await addDoc(collection(db, 'activity'), {
+            timestamp: serverTimestamp(),
+            type: 'list_join',
+            userId: listData.owner,
+            listId: listDoc.id,
+            listTitle: listData.title || 'Untitled',
+            fromUser: currentUser.uid,
+            fromUserName: await getUserName(currentUser.uid),
+            message: `${await getUserName(currentUser.uid)} joined your list "${listData.title || 'Untitled'}"`
+        });
+
+        alert('Successfully joined list');
+        input.value = '';
+        await loadUserLists();
+    } catch (err) {
+        console.error('Error joining list by invite code:', err);
+        alert('Failed to join list: ' + (err.message || 'unknown'));
     }
 };
 
@@ -543,13 +587,16 @@ async function createListFromModal() {
 
     try {
         const inviteCode = await generateUniqueInviteCode();
-        const listId = (await addDoc(collection(db, 'lists'), {
+        const category = (document.getElementById('new-list-category')?.value) || 'general';
+        const listRef = await addDoc(collection(db, 'lists'), {
             title,
             owner: currentUser.uid,
             members,
             inviteCode,
+            category,
             createdAt: serverTimestamp()
-        })).id;
+        });
+        const listId = listRef.id;
 
         // Log activities for invited members
         for (const friendUid of selectedFriendsForModal) {
@@ -566,7 +613,15 @@ async function createListFromModal() {
             });
         }
 
-        alert(`✅ List created! Invite code: ${inviteCode}`);
+        // Display invite code in the modal footer and copy to clipboard option
+        const inviteDisplay = document.getElementById('new-list-invite-display');
+        if (inviteDisplay) {
+            inviteDisplay.innerHTML = `Code: <b>${inviteCode}</b> <button id="copy-invite-btn" style="padding:4px 8px; border-radius:6px;">Copy</button>`;
+            const copyBtn = document.getElementById('copy-invite-btn');
+            if (copyBtn) copyBtn.addEventListener('click', async () => {
+                try { await navigator.clipboard.writeText(inviteCode); alert('Invite code copied'); } catch { alert('Copy failed'); }
+            });
+        }
         closeModal('create-list-modal');
         await loadUserLists();
     } catch (error) {
