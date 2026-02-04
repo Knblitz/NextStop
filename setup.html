@@ -16,14 +16,48 @@
             
             <label>Google Email</label>
             <input type="text" id="email-display" disabled>
-            
+
+            <div class="profile-row">
+                <div id="profile-avatar" class="profile-avatar">📷</div>
+                <div style="flex:1;">
+                    <label>Upload Photo (optional)</label>
+                    <input type="file" id="profile-image-input" accept="image/*">
+                    <button type="button" id="use-google-photo-btn" onclick="useGooglePhoto()" style="display:none; margin-top:8px;">Use Google Photo</button>
+                </div>
+            </div>
+
+            <label>Username (handle)</label>
+            <input type="text" id="username" placeholder="username (3-20 chars)">
+            <div id="username-error" class="field-error" style="display:none;color:#c00; font-size:0.9rem; margin-bottom:8px;"></div>
+
             <label>First Name</label>
             <input type="text" id="first-name" placeholder="First Name">
             
             <label>Surname</label>
             <input type="text" id="surname" placeholder="Surname">
-            
-            <button onclick="saveProfile()">Finish & Create Account</button>
+
+            <label>Date of Birth</label>
+            <input type="date" id="date-of-birth">
+
+            <label>Gender</label>
+            <select id="gender">
+                <option value="">Prefer not to say</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+            </select>
+
+            <div style="margin-top:10px;">
+                <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="mfa-checkbox"> Enable multi-factor (optional)</label>
+            </div>
+
+            <div style="margin-top:10px;">
+                <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="terms-checkbox"> I agree to the <a href="/terms.html" target="_blank">Terms & Conditions</a> and <a href="/privacy.html" target="_blank">Privacy Policy</a></label>
+            </div>
+
+            <div id="form-error" style="display:none; color:#c00; margin-top:8px;"></div>
+
+            <button id="create-account-btn" class="primary-btn button-disabled" disabled onclick="saveProfile()">Finish & Create Account</button>
         </div>
     </div>
  
