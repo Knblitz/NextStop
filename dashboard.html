@@ -3,28 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | NextStop</title>
-    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <title>NextStop | Dashboard </title>
+    
+    <link rel="icon" type="image/jpeg" href="assets/Favicon.jpeg">
+    <link rel="apple-touch-icon" href="assets/Favicon.jpeg">
+    
     <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
-    <div class="container">
-        <div id="partner-info" class="status-bar">Connecting to partner...</div>
+<body class="dashboard-body">
+
+    <nav class="sidebar">
+        <div class="sidebar-icon">
+            <img src="assets/Favicon.jpeg" alt="NextStop Logo">
+        </div>
+        <hr>
         
-        <div class="card">
-            <h2>Add New Stop</h2>
-            <input type="text" id="item-title" placeholder="Location Name">
-            <input type="url" id="item-url" placeholder="Paste Link Here">
-            <button onclick="addItem()">Add to List</button>
+        <div class="friends-section">
+            <h3 class="sidebar-heading">Friends</h3>
+            <div id="friends-list" class="friends-list">
+                <p class="empty-msg">No friends yet</p>
+            </div>
+            
+            <div class="add-friend-widget">
+                <input type="text" id="friend-code-input" placeholder="6-digit code" class="friend-input">
+                <button onclick="addFriendFromSidebar()" class="friend-add-btn">Add</button>
+            </div>
         </div>
 
-        <div id="items-list">
-            </div>
+        <hr>
         
-        <div class="logo-container">
-            <a href="settings.html" class="nav-link">Account Settings</a>
+        <button class="side-btn" onclick="toggleTheme()">🌙 Dark Mode</button>
+        
+        <div class="sidebar-footer">
+            <button onclick="logout()" class="logout-btn">Logout</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="top-nav">
+            <div class="search-wrapper">
+                <input type="text" id="omni-search" placeholder="Search lists, friends, groups..." class="search-bar">
+                <div id="search-results" class="search-results-dropdown"></div>
+            </div>
+            
+            <div class="user-controls">
+                <span class="friend-code-chip">Code: <b id="user-code">------</b></span>
+                
+                <div class="notification-bell" onclick="toggleNotifications()">
+                    🔔 <span class="notification-badge" id="notification-badge" style="display:none;">●</span>
+                </div>
+                
+                <div class="user-avatar" id="user-pfp" onclick="goToSettings()" title="Settings" style="background-image: url('assets/default-pfp.jpg');"></div>
+                
+                <div class="settings-circle" onclick="goToSettings()">⚙️</div>
+            </div>
+        </header>
+
+        <div class="lists-container">
+            <section class="list-section" id="personal-section">
+                <div class="section-header">
+                    <h2>My Lists</h2>
+                    <button onclick="openCreateListModal()" class="add-btn">+ New</button>
+                </div>
+                <div class="card-row" id="personal-lists">
+                    </div>
+            </section>
+
+            <section class="list-section" id="paired-section">
+                <div class="section-header">
+                    <h2>Paired Lists (1-on-1)</h2>
+                </div>
+                <div class="card-row" id="paired-lists">
+                    </div>
+            </section>
+
+            <section class="list-section" id="group-section">
+                <div class="section-header">
+                    <h2>Group Lists</h2>
+                </div>
+                <div class="card-row" id="group-lists">
+                    </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="create-list-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New List</h3>
+                <span class="close-x" onclick="closeModal('create-list-modal')">&times;</span>
+            </div>
+
+            <div class="modal-body">
+                <label>List Name</label>
+                <input type="text" id="new-list-title" placeholder="e.g., Weekend Cafe Hopping" class="modal-input">
+
+                <label>Invite Friends (Optional)</label>
+                <div id="create-friends-list" class="selection-list">
+                </div>
+                
+                <div class="status-footer">
+                    <p id="create-target-label" class="type-preview">Target: Personal Section</p>
+                    <button onclick="createListFromModal()" class="save-btn">Create List</button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <div id="notification-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h3>Notifications</h3>
+            <div id="notification-list"></div>
+            <button onclick="closeModal('notification-modal')" class="modal-close">Close</button>
+        </div>
+    </div>
+
     <script type="module" src="js/dashboard.js"></script>
 </body>
-</html>  
+</html>
