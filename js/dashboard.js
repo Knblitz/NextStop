@@ -204,22 +204,19 @@ window.addFriendFromSidebar = async () => {
             return;
         }
 
-        // Add bidirectional friendship
+        // Add friendship locally to current user's document only (cannot write to other users' docs from client)
         await updateDoc(doc(db, "users", currentUser.uid), {
             friends: arrayUnion(friendUid)
         });
-        await updateDoc(doc(db, "users", friendUid), {
-            friends: arrayUnion(currentUser.uid)
-        });
 
-        // Log activity for new friend
+        // Create a friend request activity for the recipient so they can accept (server/CF should handle acceptance)
         await addDoc(collection(db, "activity"), {
             timestamp: serverTimestamp(),
-            type: "friend_added",
-            userId: friendUid,
+            type: "friend_request",
+            userId: friendUid, // recipient
             fromUser: currentUser.uid,
             fromUserName: await getUserName(currentUser.uid),
-            message: `${await getUserName(currentUser.uid)} added you as a friend`
+            message: `${await getUserName(currentUser.uid)} sent you a friend request`
         });
 
         input.value = '';
@@ -386,6 +383,26 @@ async function loadUserLists() {
         }
     });
 
+    // Include any locally saved lists on the user document (fallback when writes to `lists` are blocked)
+    try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        const local = userDoc.data()?.localLists || [];
+        local.forEach(l => {
+            const listCard = {
+                id: l.id || (`local-${Math.floor(Math.random()*100000)}`),
+                title: l.title || 'Untitled',
+                members: l.members || [currentUser.uid],
+                inviteCode: l.inviteCode || null,
+                category: l.category || 'general',
+                local: true
+            };
+            // Local lists belong to personal section
+            userLists.personal.push(listCard);
+        });
+    } catch (err) {
+        console.warn('Could not load localLists from user doc:', err);
+    }
+
     renderLists();
 }
 
@@ -458,8 +475,219 @@ function createListCard(list) {
             <div style="font-size: 0.7rem; color: #999;">${list.members.length} members</div>
         </div>
     `;
-    card.onclick = () => goToList(list.id);
+    card.onclick = () => openListModal(list.id, !!list.local);
     return card;
+}
+
+let currentOpenListId = null;
+let currentOpenListIsLocal = false;
+
+async function openListModal(listId, isLocal = false) {
+    currentOpenListId = listId;
+    currentOpenListIsLocal = !!isLocal;
+    const modal = document.getElementById('list-detail-modal');
+    const titleEl = document.getElementById('list-detail-title');
+    const metaEl = document.getElementById('list-detail-meta');
+    const itemsContainer = document.getElementById('list-items-container');
+    const localIndicator = document.getElementById('list-local-indicator');
+
+    titleEl.textContent = 'Loading...';
+    metaEl.textContent = '';
+    itemsContainer.innerHTML = '';
+    localIndicator.textContent = '';
+
+    try {
+        if (isLocal) {
+            // Load from user's localLists
+            const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+            const local = userDoc.data()?.localLists || [];
+            const list = local.find(l => l.id === listId) || local[0];
+            if (!list) {
+                titleEl.textContent = 'List not found';
+                modal.style.display = 'flex';
+                return;
+            }
+            titleEl.textContent = list.title || 'Untitled';
+            metaEl.textContent = `Category: ${list.category || 'general'} • Invite: ${list.inviteCode || '—'}`;
+            renderListItems(itemsContainer, list.items || []);
+            localIndicator.textContent = 'Local-only list (server write blocked)';
+        } else {
+            const listDoc = await getDoc(doc(db, 'lists', listId));
+            if (!listDoc.exists()) {
+                titleEl.textContent = 'List not found';
+                modal.style.display = 'flex';
+                return;
+            }
+            const data = listDoc.data();
+            titleEl.textContent = data.title || 'Untitled';
+            metaEl.textContent = `Category: ${data.category || 'general'} • Invite: ${data.inviteCode || '—'}`;
+            renderListItems(itemsContainer, data.items || []);
+        }
+    } catch (err) {
+        console.error('Error opening list modal:', err);
+        titleEl.textContent = 'Error loading list';
+    }
+
+    // Show/hide delete button depending on ownership
+    try {
+        const deleteBtn = document.getElementById('delete-list-btn');
+        if (!isLocal) {
+            const ownerCheck = await isListOwner(listId);
+            deleteBtn.style.display = ownerCheck ? 'inline-block' : 'none';
+        } else {
+            deleteBtn.style.display = 'inline-block';
+        }
+    } catch {
+        // ignore
+    }
+
+    modal.style.display = 'flex';
+}
+
+function renderListItems(container, items) {
+    container.innerHTML = '';
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div style="color:#999; padding:12px; text-align:center;">No items yet</div>';
+        return;
+    }
+    items.forEach(it => {
+        const el = document.createElement('div');
+        el.style.display = 'flex';
+        el.style.justifyContent = 'space-between';
+        el.style.alignItems = 'center';
+        el.style.padding = '8px';
+        el.style.borderBottom = '1px solid var(--border)';
+        el.innerHTML = `<div>${escapeHtml(it.content || it.text || '')}</div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '✕';
+        btn.style.background = 'transparent';
+        btn.style.border = 'none';
+        btn.style.cursor = 'pointer';
+        btn.onclick = async () => {
+            // allow removal if owner or member (editing contents allowed)
+            try {
+                await removeItemFromList(currentOpenListId, it.id);
+                el.remove();
+            } catch (err) {
+                console.error('Failed to remove item:', err);
+                alert('Failed to remove item');
+            }
+        };
+        el.appendChild(btn);
+        container.appendChild(el);
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+async function addItemToCurrentList() {
+    const input = document.getElementById('new-item-input');
+    const content = input.value.trim();
+    if (!content) return;
+    const itemObj = {
+        id: `${Date.now()}`,
+        content,
+        addedBy: currentUser.uid,
+        createdAt: serverTimestamp()
+    };
+
+    if (!currentOpenListId) return alert('No list open');
+
+    try {
+        if (!currentOpenListIsLocal) {
+            // try to append to server list
+            await updateDoc(doc(db, 'lists', currentOpenListId), { items: arrayUnion(itemObj) });
+        } else {
+            throw new Error('local');
+        }
+    } catch (err) {
+        console.warn('Could not write item to server list, falling back to local:', err);
+        // fallback: write to user's localLists
+        try {
+            const userRef = doc(db, 'users', currentUser.uid);
+            const userSnap = await getDoc(userRef);
+            const local = userSnap.data()?.localLists || [];
+            const idx = local.findIndex(l => l.id === currentOpenListId);
+            if (idx === -1) throw new Error('Local list not found');
+            local[idx].items = local[idx].items || [];
+            local[idx].items.push({ id: itemObj.id, content, addedBy: itemObj.addedBy, createdAt: new Date().toISOString() });
+            await updateDoc(userRef, { localLists: local });
+        } catch (e2) {
+            console.error('Fallback write failed:', e2);
+            alert('Failed to add item: ' + (e2.message || 'unknown'));
+            return;
+        }
+    }
+
+    // Update UI
+    const itemsContainer = document.getElementById('list-items-container');
+    const newItem = document.createElement('div');
+    newItem.style.display = 'flex';
+    newItem.style.justifyContent = 'space-between';
+    newItem.style.padding = '8px';
+    newItem.style.borderBottom = '1px solid var(--border)';
+    newItem.innerHTML = `<div>${escapeHtml(content)}</div>`;
+    const del = document.createElement('button'); del.textContent = '✕'; del.style.background='transparent'; del.style.border='none'; del.style.cursor='pointer';
+    del.onclick = async () => { await removeItemFromList(currentOpenListId, itemObj.id); newItem.remove(); };
+    newItem.appendChild(del);
+    // If 'No items yet' placeholder exists, clear
+    if (itemsContainer.querySelector('div') && itemsContainer.querySelector('div').textContent === 'No items yet') itemsContainer.innerHTML = '';
+    itemsContainer.appendChild(newItem);
+    input.value = '';
+}
+
+async function removeItemFromList(listId, itemId) {
+    try {
+        // try server removal by reading doc and filtering
+        const listRef = doc(db, 'lists', listId);
+        const snap = await getDoc(listRef);
+        if (snap.exists()) {
+            const data = snap.data();
+            const items = (data.items || []).filter(i => i.id !== itemId);
+            await updateDoc(listRef, { items });
+            return;
+        }
+    } catch (err) {
+        console.warn('Server item removal failed:', err);
+    }
+
+    // fallback: remove from user's localLists
+    const userRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userRef);
+    const local = userSnap.data()?.localLists || [];
+    const idx = local.findIndex(l => l.id === listId);
+    if (idx !== -1) {
+        local[idx].items = (local[idx].items || []).filter(i => i.id !== itemId);
+        await updateDoc(userRef, { localLists: local });
+    } else {
+        throw new Error('Item/list not found');
+    }
+}
+
+async function confirmDeleteList() {
+    if (!currentOpenListId) return;
+    if (!confirm('Delete this list? This cannot be undone.')) return;
+    try {
+        if (!currentOpenListIsLocal) {
+            await deleteList(currentOpenListId);
+        } else {
+            // remove from localLists
+            const userRef = doc(db, 'users', currentUser.uid);
+            const userSnap = await getDoc(userRef);
+            const local = userSnap.data()?.localLists || [];
+            const updated = local.filter(l => l.id !== currentOpenListId);
+            await updateDoc(userRef, { localLists: updated });
+        }
+        closeModal('list-detail-modal');
+        await loadUserLists();
+        alert('List deleted');
+    } catch (err) {
+        console.error('Error deleting list:', err);
+        alert('Failed to delete list: ' + (err.message || 'unknown'));
+    }
 }
 
 window.createNewList = async () => {
@@ -598,19 +826,23 @@ async function createListFromModal() {
         });
         const listId = listRef.id;
 
-        // Log activities for invited members
+        // Try to log activities for invited members (best-effort)
         for (const friendUid of selectedFriendsForModal) {
-            const friendName = await getUserName(friendUid);
-            await addDoc(collection(db, "activity"), {
-                timestamp: serverTimestamp(),
-                type: "list_invite",
-                userId: friendUid,
-                listId: listId,
-                listTitle: title,
-                fromUser: currentUser.uid,
-                fromUserName: currentUserName,
-                message: `${currentUserName} invited you to "${title}"`
-            });
+            try {
+                const friendName = await getUserName(friendUid);
+                await addDoc(collection(db, "activity"), {
+                    timestamp: serverTimestamp(),
+                    type: "list_invite",
+                    userId: friendUid,
+                    listId: listId,
+                    listTitle: title,
+                    fromUser: currentUser.uid,
+                    fromUserName: currentUserName,
+                    message: `${currentUserName} invited you to "${title}"`
+                });
+            } catch (actErr) {
+                console.warn('Could not write invite activity (permissions?):', actErr);
+            }
         }
 
         // Display invite code in the modal footer and copy to clipboard option
@@ -626,7 +858,29 @@ async function createListFromModal() {
         await loadUserLists();
     } catch (error) {
         console.error('Error creating list from modal:', error);
-        alert('Failed to create list: ' + (error.message || 'unknown error'));
+        // If permission denied, create a local list entry under the user's profile as a fallback
+        if (error && (error.code === 'permission-denied' || /permission/i.test(error.message || ''))) {
+            try {
+                const fallback = {
+                    id: `local-${Date.now()}`,
+                    title,
+                    owner: currentUser.uid,
+                    members,
+                    inviteCode: await generateUniqueInviteCode().catch(()=>('LOCAL'+Math.floor(Math.random()*90000+10000))),
+                    category: (document.getElementById('new-list-category')?.value) || 'general',
+                    createdAt: new Date().toISOString(),
+                    local: true
+                };
+                await updateDoc(doc(db, 'users', currentUser.uid), { localLists: arrayUnion(fallback) });
+                alert('List created locally (server write blocked). It appears in your "My Lists" section.');
+                await loadUserLists();
+            } catch (fbErr) {
+                console.error('Fallback local list creation failed:', fbErr);
+                alert('Failed to create list: ' + (fbErr.message || 'permission denied'));
+            }
+        } else {
+            alert('Failed to create list: ' + (error.message || 'unknown error'));
+        }
     }
 }
 
