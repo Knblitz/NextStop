@@ -34,7 +34,7 @@ window.updateProfile = async (e) => {
         alert("Update failed.");
     }
 };
-
+ 
 // 3. Handle Logout
 window.logout = async () => {
     try {

@@ -75,7 +75,7 @@ window.joinGroup = async () => {
             alert("Invalid Code! Please check with your partner.");
             return;
         }
-
+ 
         // Get the first matching group document
         const groupDoc = querySnapshot.docs[0];
         const groupId = groupDoc.id;

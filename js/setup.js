@@ -27,4 +27,4 @@ window.saveProfile = async () => {
 
     await setDoc(doc(db, "users", user.uid), profileData);
     window.location.href = 'lobby.html';
-};
+}; 

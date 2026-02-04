@@ -124,4 +124,4 @@ window.deleteItem = async (itemId) => {
             console.error("Error deleting item:", error);
         }
     }
-};
+}; 

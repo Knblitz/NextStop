@@ -21,4 +21,4 @@ window.signInWithGoogle = async () => {
         console.error("Auth Error:", error);
         alert("Google Sign-In failed.");
     }
-};
+}; 
