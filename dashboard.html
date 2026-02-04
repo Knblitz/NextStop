@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | NextStop</title>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div id="partner-info" class="status-bar">Connecting to partner...</div>
+        
+        <div class="card">
+            <h2>Add New Stop</h2>
+            <input type="text" id="item-title" placeholder="Location Name">
+            <input type="url" id="item-url" placeholder="Paste Link Here">
+            <button onclick="addItem()">Add to List</button>
+        </div>
+
+        <div id="items-list">
+            </div>
+        
+        <div class="logo-container">
+            <a href="settings.html" class="nav-link">Account Settings</a>
+        </div>
+    </div>
+    <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

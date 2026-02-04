@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lobby | NextStop</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>Connect with Partner</h2>
+            <p style="text-align: center;">Create a new list or join your partner's existing one.</p>
+            
+            <button onclick="createGroup()">Create New Group</button>
+            <div id="display-code" style="text-align: center; margin-top: 15px; font-weight: bold; font-size: 1.2rem; color: var(--coral);"></div>
+            
+            <div style="margin: 30px 0; border-top: 1px solid #eee; position: relative;">
+                <span style="position: absolute; top: -12px; left: 45%; background: white; padding: 0 10px; color: #999;">OR</span>
+            </div>
+            
+            <input type="text" id="join-input" placeholder="Enter 6-digit partner code">
+            <button onclick="joinGroup()" style="background-color: var(--navy);">Join Group</button>
+        </div>
+    </div>
+
+    <script type="module" src="js/lobby.js"></script>
+</body>
+</html>

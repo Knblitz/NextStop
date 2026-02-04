@@ -1,0 +1,232 @@
+/* css/styles.css */
+
+:root {
+    --coral: #FF6F61;
+    --navy: #2D3436;
+    --cream: #FAF3E0;
+    --white: #FFFFFF;
+    --gray: #F4F4F4;
+    --text-dark: #333333;
+    --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Base Reset */
+* {
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--cream);
+    color: var(--text-dark);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* Layout Containers */
+.container {
+    width: 100%;
+    max-width: 500px;
+    padding: 20px;
+}
+
+.card {
+    background: var(--white);
+    padding: 25px;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+}
+
+/* Logo & Branding */
+.logo-container {
+    text-align: center;
+    margin-bottom: 30px;
+    margin-top: 50px;
+}
+
+.logo-image {
+    width: 160px; 
+    height: 160px; 
+    border-radius: 20px; 
+    box-shadow: var(--shadow);
+    object-fit: cover;
+}
+
+.logo-container h1 {
+    color: var(--navy);
+    margin-top: 15px;
+    font-size: 2.5rem;
+    letter-spacing: -1px;
+    font-weight: 800; /* Bold "Next" */
+}
+
+.logo-container h1 span {
+    color: var(--coral);
+    font-weight: 300; /* Thin "Stop" */
+}
+
+/* Typography & Headers */
+h2 {
+    color: var(--navy);
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+h3 {
+    margin-top: 0;
+    color: var(--navy);
+}
+
+label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: var(--navy);
+}
+
+/* Forms & Inputs */
+input {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    border: 2px solid var(--gray);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+input:focus {
+    border-color: var(--coral);
+}
+
+input:disabled {
+    background-color: var(--gray);
+    color: #888;
+    cursor: not-allowed;
+}
+
+/* Buttons */
+button {
+    width: 100%;
+    padding: 14px;
+    background-color: var(--coral);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.3s;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+.logout-btn {
+    background-color: var(--navy);
+    margin-top: 10px;
+}
+
+/* Google Sign-In Button */
+.google-btn {
+    background-color: white;
+    color: #757575;
+    border: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+/* Item Cards (Dashboard List) */
+.item-card {
+    background: var(--white);
+    padding: 15px;
+    margin: 12px 0;
+    border-left: 6px solid var(--coral);
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.item-card p {
+    margin: 0;
+    font-weight: 600;
+}
+
+.item-card a {
+    color: var(--coral);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.delete-btn {
+    width: auto;
+    background: transparent;
+    color: #ccc;
+    padding: 5px 10px;
+    font-size: 1.2rem;
+}
+
+.delete-btn:hover {
+    color: var(--coral);
+}
+
+/* Status & Navigation */
+.status-bar {
+    text-align: center;
+    padding: 12px;
+    margin-bottom: 20px;
+    background: var(--white);
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--navy);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.back-link {
+    text-decoration: none;
+    color: var(--coral);
+    font-weight: bold;
+}
+
+.header-title {
+    flex-grow: 1;
+    margin: 0;
+    text-align: center;
+}
+
+.nav-link {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    color: var(--navy);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid var(--gray);
+    margin: 20px 0;
+}

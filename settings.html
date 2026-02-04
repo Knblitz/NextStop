@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings | NextStop</title>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="app-header">
+            <a href="dashboard.html" class="back-link">← Back</a>
+            <h2 class="header-title">Settings</h2>
+        </header>
+
+        <div class="card">
+            <h3>Profile Information</h3>
+            <label for="edit-first-name">First Name</label>
+            <input type="text" id="edit-first-name">
+            
+            <label for="edit-surname">Surname</label>
+            <input type="text" id="edit-surname">
+            
+            <button onclick="updateProfile()">Save Changes</button>
+        </div>
+
+        <div class="card">
+            <h3>Account</h3>
+            <button onclick="logout()" class="logout-btn">Sign Out</button>
+        </div>
+    </div>
+    <script type="module" src="js/settings.js"></script>
+</body>
+</html>
