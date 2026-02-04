@@ -131,7 +131,7 @@ async function uploadProfileImage(userId) {
     }
 }
 
-// Generate unique 6-digit user ID
+// Generate unique 6-digit IDs
 const generate6DigitId = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 async function generateUniqueUserId() {
@@ -144,6 +144,18 @@ async function generateUniqueUserId() {
         attempts++;
     }
     throw new Error("Unable to generate unique user ID");
+}
+
+async function generateUniqueFriendCode() {
+    let attempts = 0;
+    while (attempts < 20) {
+        const candidate = generate6DigitId();
+        const q = query(collection(db, "users"), where("friendCode", "==", candidate));
+        const snap = await getDocs(q);
+        if (snap.empty) return candidate;
+        attempts++;
+    }
+    throw new Error("Unable to generate unique friend code");
 }
 
 // Main Save Profile Function
@@ -197,6 +209,9 @@ window.saveProfile = async () => {
         // Generate unique 6-digit user ID
         const userId = await generateUniqueUserId();
 
+        // Generate unique 6-digit friend code
+        const friendCode = await generateUniqueFriendCode();
+
         // Decide photoURL: prefer uploaded image; else explicit Google choice; else Google photo or placeholder
         let photoURL = 'https://via.placeholder.com/150';
         if (selectedImageFile) {
@@ -215,6 +230,7 @@ window.saveProfile = async () => {
             surname,
             photoURL,
             userId,
+            friendCode,
             dateOfBirth: dateOfBirth || null,
             gender: gender || null,
             friends: [],

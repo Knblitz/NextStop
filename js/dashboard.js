@@ -10,6 +10,7 @@ import {
     addDoc,
     updateDoc,
     getDocs,
+    deleteDoc,
     serverTimestamp,
     arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -51,10 +52,20 @@ async function loadUserData() {
     const userDoc = await getDoc(doc(db, "users", currentUser.uid));
     if (userDoc.exists()) {
         const data = userDoc.data();
-        document.getElementById('user-code').textContent = data.userId || '---';
+        document.getElementById('user-code').textContent = data.friendCode || '---';
         if (data.photoURL) {
             document.getElementById('user-pfp').style.backgroundImage = `url('${data.photoURL}')`;
         }
+    }
+}
+
+// Helper: Get user name by UID
+async function getUserName(uid) {
+    try {
+        const userDoc = await getDoc(doc(db, "users", uid));
+        return userDoc.exists() ? (userDoc.data().firstName || 'User') : 'Unknown';
+    } catch {
+        return 'Unknown';
     }
 }
 
@@ -91,30 +102,33 @@ function renderFriendsList() {
 
 window.addFriendFromSidebar = async () => {
     const input = document.getElementById('friend-code-input');
-    const code = input.value.trim();
+    const code = input.value.trim().toUpperCase();
 
     if (!code) {
-        alert('Enter a 6-digit code');
+        alert('Enter a friend code');
         return;
     }
 
     try {
-        const q = query(collection(db, "users"), where("userId", "==", code));
+        // Search by friendCode instead of userId
+        const q = query(collection(db, "users"), where("friendCode", "==", code));
         const snap = await getDocs(q);
 
         if (snap.empty) {
-            alert('User not found');
+            alert('Friend code not found');
             return;
         }
 
         const friendUid = snap.docs[0].id;
+        const friendName = snap.docs[0].data().firstName;
+        
         if (friendUid === currentUser.uid) {
             alert("That's your own code");
             return;
         }
 
         if (userFriends.includes(friendUid)) {
-            alert('Already friends');
+            alert(`Already friends with ${friendName}`);
             return;
         }
 
@@ -126,9 +140,19 @@ window.addFriendFromSidebar = async () => {
             friends: arrayUnion(currentUser.uid)
         });
 
+        // Log activity for new friend
+        await addDoc(collection(db, "activity"), {
+            timestamp: serverTimestamp(),
+            type: "friend_added",
+            userId: friendUid,
+            fromUser: currentUser.uid,
+            fromUserName: await getUserName(currentUser.uid),
+            message: `${await getUserName(currentUser.uid)} added you as a friend`
+        });
+
         input.value = '';
         await loadFriendsList();
-        alert('Friend added!');
+        alert(`✅ Friend added: ${friendName}`);
     } catch (error) {
         console.error('Error adding friend:', error);
         alert('Failed to add friend');
@@ -136,6 +160,86 @@ window.addFriendFromSidebar = async () => {
 };
 
 // ===== LISTS MANAGEMENT =====
+// Check if current user is the owner (lead editor) of a list
+async function isListOwner(listId) {
+    const listDoc = await getDoc(doc(db, "lists", listId));
+    return listDoc.exists() && listDoc.data().owner === currentUser.uid;
+}
+
+// Check if current user is a member of a list
+async function isListMember(listId) {
+    const listDoc = await getDoc(doc(db, "lists", listId));
+    return listDoc.exists() && listDoc.data().members.includes(currentUser.uid);
+}
+
+// Get user role in a list (owner or member)
+async function getUserRole(listId) {
+    const isOwner = await isListOwner(listId);
+    return isOwner ? 'owner' : 'member';
+}
+
+// Owner-only: Add a member to a list
+async function addListMember(listId, newMemberUid) {
+    if (!(await isListOwner(listId))) {
+        throw new Error('Only the owner can add members');
+    }
+    
+    const listDoc = await getDoc(doc(db, "lists", listId));
+    if (listDoc.data().members.includes(newMemberUid)) {
+        throw new Error('User is already a member');
+    }
+    
+    await updateDoc(doc(db, "lists", listId), {
+        members: arrayUnion(newMemberUid)
+    });
+    
+    // Log activity
+    const listTitle = listDoc.data().title;
+    const currentUserName = await getUserName(currentUser.uid);
+    await addDoc(collection(db, "activity"), {
+        timestamp: serverTimestamp(),
+        type: "list_member_added",
+        userId: newMemberUid,
+        listId: listId,
+        listTitle: listTitle,
+        fromUser: currentUser.uid,
+        fromUserName: currentUserName,
+        message: `${currentUserName} added you to "${listTitle}"`
+    });
+}
+
+// Owner-only: Remove a member from a list
+async function removeListMember(listId, memberUid) {
+    if (!(await isListOwner(listId))) {
+        throw new Error('Only the owner can remove members');
+    }
+    
+    const listRef = doc(db, "lists", listId);
+    const listDoc = await getDoc(listRef);
+    const members = listDoc.data().members.filter(uid => uid !== memberUid);
+    
+    await updateDoc(listRef, { members });
+}
+
+// Owner-only: Rename list
+async function renameList(listId, newTitle) {
+    if (!(await isListOwner(listId))) {
+        throw new Error('Only the owner can rename the list');
+    }
+    
+    await updateDoc(doc(db, "lists", listId), {
+        title: newTitle
+    });
+}
+
+// Owner-only: Delete list
+async function deleteList(listId) {
+    if (!(await isListOwner(listId))) {
+        throw new Error('Only the owner can delete the list');
+    }
+    
+    await deleteDoc(doc(db, "lists", listId));
+}
 async function loadUserLists() {
     // Query lists where user is owner or member
     const listsSnapshot = await getDocs(
@@ -180,7 +284,8 @@ function renderLists() {
             personalEl.appendChild(createListCard(list));
         });
     } else {
-        personalSection.style.display = 'none';
+        personalSection.style.display = 'block';
+        personalEl.appendChild(createEmptyStateCard('No Personal lists yet. Create one now!', 'openCreateListModal()'));
     }
 
     // Paired Lists
@@ -193,7 +298,8 @@ function renderLists() {
             pairedEl.appendChild(createListCard(list));
         });
     } else {
-        pairedSection.style.display = 'none';
+        pairedSection.style.display = 'block';
+        pairedEl.appendChild(createEmptyStateCard('No Paired lists yet. Invite a friend!', 'openCreateListModal()'));
     }
 
     // Group Lists
@@ -206,8 +312,24 @@ function renderLists() {
             groupEl.appendChild(createListCard(list));
         });
     } else {
-        groupSection.style.display = 'none';
+        groupSection.style.display = 'block';
+        groupEl.appendChild(createEmptyStateCard('No Group lists yet. Create one with friends!', 'openCreateListModal()'));
     }
+}
+
+function createEmptyStateCard(message, onclick) {
+    const card = document.createElement('div');
+    card.className = 'list-card empty-state-card';
+    card.style.cursor = 'pointer';
+    card.style.opacity = '0.6';
+    card.innerHTML = `
+        <div style="text-align: center; width: 100%;">
+            <div style="font-size: 2rem; margin-bottom: 5px;">✨</div>
+            <div style="font-size: 0.75rem; color: #999;">${message}</div>
+        </div>
+    `;
+    card.onclick = () => eval(onclick);
+    return card;
 }
 
 function createListCard(list) {
@@ -242,6 +364,8 @@ function openCreateListModal() {
     fetchFriendsForModal();
     modal.style.display = 'flex';
 }
+// Expose to global scope so inline onclick in HTML can call it
+window.openCreateListModal = openCreateListModal;
 
 async function fetchFriendsForModal() {
     try {
@@ -338,18 +462,34 @@ async function generateUniqueInviteCode() {
 async function createListFromModal() {
     const title = document.getElementById('new-list-title').value.trim() || 'Untitled';
     const members = [currentUser.uid, ...selectedFriendsForModal];
+    const currentUserName = await getUserName(currentUser.uid);
 
     try {
         const inviteCode = await generateUniqueInviteCode();
-        await addDoc(collection(db, 'lists'), {
+        const listId = (await addDoc(collection(db, 'lists'), {
             title,
             owner: currentUser.uid,
             members,
             inviteCode,
             createdAt: serverTimestamp()
-        });
+        })).id;
 
-        alert(`List created! Invite code: ${inviteCode}`);
+        // Log activities for invited members
+        for (const friendUid of selectedFriendsForModal) {
+            const friendName = await getUserName(friendUid);
+            await addDoc(collection(db, "activity"), {
+                timestamp: serverTimestamp(),
+                type: "list_invite",
+                userId: friendUid,
+                listId: listId,
+                listTitle: title,
+                fromUser: currentUser.uid,
+                fromUserName: currentUserName,
+                message: `${currentUserName} invited you to "${title}"`
+            });
+        }
+
+        alert(`✅ List created! Invite code: ${inviteCode}`);
         closeModal('create-list-modal');
         await loadUserLists();
     } catch (error) {
@@ -357,6 +497,9 @@ async function createListFromModal() {
         alert('Failed to create list');
     }
 }
+
+// Expose create action to global scope for inline onclick in HTML
+window.createListFromModal = createListFromModal;
 
 function goToList(listId) {
     window.location.href = `dashboard.html?list=${listId}`;
@@ -443,12 +586,21 @@ function setupSearchListener() {
     });
 }
 
-// ===== NOTIFICATIONS =====
+// ===== NOTIFICATIONS & ACTIVITY =====
+let unreadActivities = [];
+
 function setupNotificationListener() {
-    const userDoc = doc(db, "users", currentUser.uid);
-    onSnapshot(userDoc, (snap) => {
-        const data = snap.data();
-        notifications = data?.notifications || [];
+    // Listen for activities directed at the current user
+    const q = query(
+        collection(db, "activity"),
+        where("userId", "==", currentUser.uid)
+    );
+    
+    onSnapshot(q, (snapshot) => {
+        unreadActivities = [];
+        snapshot.forEach((doc) => {
+            unreadActivities.push({ id: doc.id, ...doc.data() });
+        });
         updateNotificationBadge();
     });
 }
@@ -456,41 +608,56 @@ function setupNotificationListener() {
 window.toggleNotifications = () => {
     const modal = document.getElementById('notification-modal');
     modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
-    renderNotifications();
+    renderActivities();
 };
 
 function updateNotificationBadge() {
     const badge = document.getElementById('notification-badge');
-    badge.style.display = notifications.length > 0 ? 'inline' : 'none';
+    badge.style.display = unreadActivities.length > 0 ? 'inline' : 'none';
+    if (unreadActivities.length > 0) {
+        badge.textContent = unreadActivities.length > 9 ? '9+' : unreadActivities.length;
+    }
 }
 
-function renderNotifications() {
-    const notifList = document.getElementById('notification-list');
-    notifList.innerHTML = '';
+function renderActivities() {
+    const activityList = document.getElementById('notification-list');
+    activityList.innerHTML = '';
 
-    if (notifications.length === 0) {
-        notifList.innerHTML = '<p style="color:#999;">No notifications</p>';
+    if (unreadActivities.length === 0) {
+        activityList.innerHTML = '<p style="color:#999; text-align: center; padding: 20px;">No activities yet</p>';
         return;
     }
 
-    notifications.forEach((notif, idx) => {
+    unreadActivities.forEach((activity, idx) => {
         const item = document.createElement('div');
-        item.style.padding = '10px';
-        item.style.borderBottom = '1px solid #eee';
+        item.style.padding = '12px 15px';
+        item.style.borderBottom = '1px solid var(--border)';
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
+        
+        const icon = activity.type === 'list_invite' ? '📋' : activity.type === 'friend_added' ? '👥' : '📝';
+        
         item.innerHTML = `
-            <p>${notif.message}</p>
-            <button onclick="clearNotification(${idx})" style="width:auto; padding:5px 10px; font-size:0.85rem;">Clear</button>
+            <div>
+                <p style="margin: 0; font-weight: 600;">${icon} ${activity.message}</p>
+                <small style="color: #999;">${new Date(activity.timestamp?.toDate?.() || Date.now()).toLocaleDateString()}</small>
+            </div>
+            <button onclick="clearActivity('${activity.id}')" style="width:auto; padding:5px 10px; font-size:0.8rem;">✕</button>
         `;
-        notifList.appendChild(item);
+        activityList.appendChild(item);
     });
 }
 
-window.clearNotification = async (idx) => {
-    notifications.splice(idx, 1);
-    await updateDoc(doc(db, "users", currentUser.uid), {
-        notifications
-    });
-    renderNotifications();
+window.clearActivity = async (activityId) => {
+    try {
+        await deleteDoc(doc(db, "activity", activityId));
+        unreadActivities = unreadActivities.filter(a => a.id !== activityId);
+        updateNotificationBadge();
+        renderActivities();
+    } catch (error) {
+        console.error('Error clearing activity:', error);
+    }
 };
 
 window.closeModal = (modalId) => {

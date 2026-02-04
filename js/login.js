@@ -1,10 +1,12 @@
 // js/login.js
 import { auth, db, provider } from './config.js';
-import { signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { signInWithPopup, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 window.signInWithGoogle = async () => {
     try {
+        // Use local persistence to avoid issues when sessionStorage is unavailable
+        await setPersistence(auth, browserLocalPersistence);
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
 
