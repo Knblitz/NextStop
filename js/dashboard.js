@@ -52,10 +52,82 @@ async function loadUserData() {
     const userDoc = await getDoc(doc(db, "users", currentUser.uid));
     if (userDoc.exists()) {
         const data = userDoc.data();
-        document.getElementById('user-code').textContent = data.friendCode || '---';
+        // Ensure user has a friendCode; if not, generate and persist one
+        if (!data.friendCode) {
+            try {
+                const generated = await generateUniqueFriendCode();
+                await updateDoc(doc(db, "users", currentUser.uid), { friendCode: generated });
+                document.getElementById('user-code').textContent = generated;
+            } catch (err) {
+                console.error('Failed to generate friendCode:', err);
+                document.getElementById('user-code').textContent = '---';
+            }
+        } else {
+            document.getElementById('user-code').textContent = data.friendCode || '---';
+        }
         if (data.photoURL) {
             document.getElementById('user-pfp').style.backgroundImage = `url('${data.photoURL}')`;
         }
+    }
+}
+
+// Local helper: generate a 6-digit numeric ID
+const generate6DigitId_local = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+async function generateUniqueFriendCode() {
+    let attempts = 0;
+    while (attempts < 20) {
+        const candidate = generate6DigitId_local();
+        const q = query(collection(db, "users"), where("friendCode", "==", candidate));
+        const snap = await getDocs(q);
+        if (snap.empty) return candidate;
+        attempts++;
+    }
+    throw new Error('Unable to generate unique friend code');
+}
+
+// Ensure existing user documents have required fields with correct types
+async function ensureUserDocumentSchema() {
+    try {
+        const userRef = doc(db, "users", currentUser.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const updates = {};
+
+        if (typeof data.currentGroupId === 'undefined') updates.currentGroupId = null;
+        if (!Array.isArray(data.friends)) updates.friends = [];
+        if (!Array.isArray(data.notifications)) updates.notifications = [];
+        if (typeof data.privacyVisibility === 'undefined') updates.privacyVisibility = true;
+        if (typeof data.privacyNotifications === 'undefined') updates.privacyNotifications = true;
+        if (!data.photoURL) updates.photoURL = data.photoURL || '';
+        if (!data.dateOfBirth) updates.dateOfBirth = data.dateOfBirth || null;
+
+        // Ensure userId exists (string)
+        if (!data.userId) {
+            // generate a candidate and ensure uniqueness
+            let attempts = 0;
+            while (attempts < 20) {
+                const candidate = generate6DigitId_local();
+                const q = query(collection(db, "users"), where("userId", "==", candidate));
+                const existing = await getDocs(q);
+                if (existing.empty) {
+                    updates.userId = candidate;
+                    break;
+                }
+                attempts++;
+            }
+        }
+
+        // Ensure friendCode exists (string) - we already generate in loadUserData if missing
+        // Ensure createdAt exists
+        if (!data.createdAt) updates.createdAt = serverTimestamp();
+
+        if (Object.keys(updates).length > 0) {
+            await updateDoc(userRef, updates);
+        }
+    } catch (err) {
+        console.error('Error ensuring user schema:', err);
     }
 }
 
@@ -102,7 +174,7 @@ function renderFriendsList() {
 
 window.addFriendFromSidebar = async () => {
     const input = document.getElementById('friend-code-input');
-    const code = input.value.trim().toUpperCase();
+    const code = input.value.trim();
 
     if (!code) {
         alert('Enter a friend code');
@@ -460,8 +532,13 @@ async function generateUniqueInviteCode() {
 }
 
 async function createListFromModal() {
+    if (!currentUser) {
+        alert('Please sign in to create lists');
+        return;
+    }
+
     const title = document.getElementById('new-list-title').value.trim() || 'Untitled';
-    const members = [currentUser.uid, ...selectedFriendsForModal];
+    const members = Array.from(new Set([currentUser.uid, ...selectedFriendsForModal]));
     const currentUserName = await getUserName(currentUser.uid);
 
     try {
@@ -494,7 +571,7 @@ async function createListFromModal() {
         await loadUserLists();
     } catch (error) {
         console.error('Error creating list from modal:', error);
-        alert('Failed to create list');
+        alert('Failed to create list: ' + (error.message || 'unknown error'));
     }
 }
 
